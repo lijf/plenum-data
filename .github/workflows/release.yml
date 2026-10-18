@@ -1,0 +1,64 @@
+name: Publish OpenAlex author index
+
+on:
+  schedule:
+    # The 20th of every month. OpenAlex publishes public snapshots around the
+    # second Wednesday of January, April, July and October; the check step
+    # exits early when the latest release already carries the current one.
+    - cron: "0 6 20 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  authors:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install DuckDB
+        run: pip install "duckdb==1.5.2"
+
+      - name: Compare the manifest date with the latest release
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          DATE=$(curl -fsS https://openalex.s3.amazonaws.com/data/parquet/authors/manifest.json \
+            | python3 -c 'import json, sys; print(json.load(sys.stdin)["date"])')
+          LATEST=$(gh release view --json tagName -q .tagName 2>/dev/null || echo none)
+          echo "manifest date: $DATE, latest release: $LATEST"
+          echo "date=$DATE" >> "$GITHUB_OUTPUT"
+          if [ "snapshot-$DATE" = "$LATEST" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build authors.json.xz and its sidecar
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          set -euo pipefail
+          start=$(date +%s)
+          python3 tools/precompute_authors.py --output-dir out
+          echo "wall time: $(( ($(date +%s) - start) / 60 )) min"
+          ls -l out
+          cat out/authors.meta.json
+
+      - name: Publish the release
+        if: steps.check.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          DATE="${{ steps.check.outputs.date }}"
+          gh release create "snapshot-$DATE" out/authors.json.xz out/authors.meta.json \
+            --title "OpenAlex snapshot $DATE" --latest \
+            --notes "Authors with at least 50 works from the OpenAlex snapshot of $DATE (CC0). authors.meta.json: count, minWorks, sha256 of the uncompressed JSON, snapshotDate. Built by .github/workflows/release.yml."
