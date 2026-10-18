@@ -26,3 +26,9 @@ To run the precompute locally: `pip install "duckdb==1.5.2"` (or `uv sync` in `t
 ## License
 
 Data: CC0 1.0. Scripts under `tools/`: MIT. See `LICENSE`.
+
+## Run log
+
+| Date | Snapshot | Where | Wall time | Output | Notes |
+|---|---|---|---|---|---|
+| 2026-10-18 | 2026-10-14 | GitHub Actions run 39145992789 (ubuntu-latest) | 7 min for the build step, 8 min end to end | 2,998,728 authors ≥50; 244.5 MB JSON, 38.0 MB xz | First automated run. Verified from `releases/latest/download/` with `artifact_io.verify` in 3.9 s on a Mac. |

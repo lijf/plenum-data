@@ -22,6 +22,7 @@ Usage:
 """
 
 import argparse
+import sys
 import json
 from pathlib import Path
 
@@ -80,7 +81,8 @@ def main() -> None:
     # window-function aggregation is the long-running step and there's
     # nothing on disk to watch until the JSON write phase. progress_bar_time
     # is the threshold in ms before the bar appears (0 = always).
-    con.execute("SET enable_progress_bar=true;")
+    # Only when stdout is a terminal: in CI the redraws fill the log.
+    con.execute(f"SET enable_progress_bar={'true' if sys.stdout.isatty() else 'false'};")
     con.execute("SET progress_bar_time=0;")
 
     print(f"Streaming authors from {S3_AUTHORS_GLOB}")
